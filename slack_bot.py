@@ -38,18 +38,18 @@ def format_violation_message(result: dict, original_message: str) -> str:
     rule = result.get("rule", "Unknown rule")
     explanation = result.get("explanation", "No explanation provided")
     
-    # Create message with blocks for better formatting
-    message = f"""{emoji} **SOP Violation Detected** ({severity.upper()})
+    msg_preview = original_message[:200] + ("..." if len(original_message) > 200 else "")
+    
+    message = f""":rotating_light: {emoji} *SOP Violation* — {severity.upper()}:rotating_light:
 
-**Rule Violated:** {rule}
+*Rule:* {rule}
 
-**Why this is a violation:**
-{explanation}
+*Explanation:* {explanation}
 
-**Original message:**
-> {original_message[:200]}{"..." if len(original_message) > 200 else ""}
+*Flagged message:*
+> {msg_preview}
 
-Please review our SOPs and ensure compliance. If you believe this is a false positive, contact your manager."""
+Please review our SOPs. If this is a false positive, contact your manager."""
     
     return message
 
