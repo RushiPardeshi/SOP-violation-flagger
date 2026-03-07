@@ -8,11 +8,15 @@ router = APIRouter()
 @router.post("/ingest", response_model=IngestResponse)
 async def ingest_document(request: IngestRequest):
     try:
-        upsert_doc(
+        result = upsert_doc(
             doc_id=request.doc_id,
             title=request.title,
             content=request.content,
         )
-        return IngestResponse(status="ok", doc_id=request.doc_id)
+        return IngestResponse(
+            status="ok", 
+            doc_id=request.doc_id,
+            action=result.get("action")
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
