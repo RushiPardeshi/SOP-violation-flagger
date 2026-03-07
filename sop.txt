@@ -1,0 +1,346 @@
+Internal Standard Operating Procedures (SOP)
+
+Organization: ApexStack Technologies
+Document Version: 3.2
+Effective Date: Jan 2025
+Scope: All engineering, product, and DevOps personnel.
+
+This SOP establishes operational rules for communication, software development practices, security compliance, and production operations.
+
+Software teams commonly define SOPs covering development workflow, coding standards, testing, deployment, and communication practices to ensure consistent engineering quality and reliable delivery.  ￼
+
+⸻
+
+1. Communication Policies (Slack, Email, Internal Chat)
+
+1.1 Confidential Information
+
+Employees must not share the following in public Slack channels or external platforms:
+	•	Production database credentials
+	•	API keys or private tokens
+	•	Customer PII (email, phone numbers, addresses)
+	•	Security vulnerabilities before responsible disclosure
+
+Allowed exception:
+Credentials may be shared only in encrypted secret managers (e.g., Vault, AWS Secrets Manager).
+
+Severity Levels
+	•	Critical: Sharing raw production credentials
+	•	High: Sharing customer PII
+	•	Medium: Sharing internal architecture details externally
+
+Example violation:
+
+Here is the production DB password:
+postgres://admin:myPass123@prod-db
+
+
+⸻
+
+1.2 Public Communication Conduct
+
+Employees must maintain professional conduct in all company communication channels.
+
+Prohibited behavior:
+	•	Harassment or abusive language
+	•	Discriminatory remarks
+	•	Personal attacks toward colleagues
+
+Example violation:
+
+This code is garbage. Whoever wrote this should be fired.
+
+Severity: Medium
+
+⸻
+
+1.3 Incident Communication
+
+During production incidents:
+	•	Only the Incident Commander (IC) may post updates in #incident-updates
+	•	Engineers must avoid speculation or unverified fixes in public channels
+
+Example violation:
+
+I think the database is down but not sure.
+Let's just restart everything.
+
+Severity: Medium
+
+⸻
+
+2. Software Development Workflow
+
+2.1 Version Control Rules
+
+All code must be committed through GitHub Pull Requests.
+
+Rules:
+	•	Direct pushes to main are prohibited
+	•	Each PR must have at least 1 reviewer
+	•	Critical infrastructure code requires 2 reviewers
+
+Example violation:
+
+I pushed directly to main to fix prod quickly.
+
+Severity: High
+
+⸻
+
+2.2 Branch Naming Convention
+
+Branches must follow:
+
+feature/<ticket-number>-<description>
+bugfix/<ticket-number>
+hotfix/<ticket-number>
+
+Example violation:
+
+branch name: testing123
+
+Severity: Low
+
+⸻
+
+2.3 Code Review Standards
+
+Every PR must include:
+	•	Description of change
+	•	Linked Jira ticket
+	•	Unit test coverage
+
+Minimum coverage requirement:
+
+Backend services: 80%
+Frontend: 70%
+
+Example violation:
+
+Skipping tests for now, will add later.
+
+Severity: Medium
+
+⸻
+
+3. Security & Compliance
+
+3.1 Secrets Management
+
+Secrets must never be:
+	•	committed to Git repositories
+	•	shared in Slack
+	•	included in screenshots
+
+Example violation:
+
+Here is the AWS key for testing:
+
+AWS_ACCESS_KEY=AKIA8732...
+
+Severity: Critical
+
+⸻
+
+3.2 Access Control
+
+Employees must not:
+	•	share personal accounts
+	•	access environments outside their role
+
+Example violation:
+
+Can someone give me root access to production?
+
+Severity: High
+
+⸻
+
+3.3 Security Vulnerability Disclosure
+
+Security bugs must be reported through:
+
+security@apexstack.com
+
+Public disclosure without approval is prohibited.
+
+Example violation:
+
+Found a SQL injection in our auth API lol.
+
+Severity: High
+
+⸻
+
+4. Deployment Procedures
+
+4.1 Production Deployment
+
+Production deployments must occur through the CI/CD pipeline only.
+
+Manual server changes are forbidden.
+
+Example violation:
+
+I SSH'd into the production server and changed the config.
+
+Severity: Critical
+
+⸻
+
+4.2 Release Windows
+
+Standard deployment windows:
+
+Tuesday: 10 AM – 2 PM
+Thursday: 1 PM – 4 PM
+
+Emergency hotfix deployments must be approved by:
+	•	Engineering Manager
+	•	Incident Commander
+
+Example violation:
+
+Deploying new version at midnight just to try something.
+
+Severity: Medium
+
+⸻
+
+5. Logging & Monitoring
+
+5.1 Required Logging
+
+All services must log:
+	•	request IDs
+	•	error stack traces
+	•	user identifiers (anonymized)
+
+Example violation:
+
+Let's disable logs temporarily to improve performance.
+
+Severity: High
+
+⸻
+
+6. Data Handling
+
+6.1 PII Handling
+
+Sensitive customer data must be:
+	•	masked in logs
+	•	encrypted at rest
+	•	encrypted in transit
+
+Example violation:
+
+Customer email: john.doe@gmail.com
+Order ID: 55421
+
+Severity: High
+
+⸻
+
+7. AI Usage Policy
+
+AI-generated code must:
+	•	be reviewed by a human developer
+	•	pass security scans
+	•	follow internal coding standards
+
+Example violation:
+
+I pasted ChatGPT code directly into production.
+
+Severity: Medium
+
+⸻
+
+8. Internal Tool Usage
+
+Approved internal tools:
+	•	Jira
+	•	GitHub
+	•	Slack
+	•	AWS
+	•	Datadog
+
+Shadow IT tools require approval from IT.
+
+Example violation:
+
+I uploaded the customer database to my personal Google Drive.
+
+Severity: Critical
+
+⸻
+
+9. Escalation Matrix
+
+Severity	Definition	Response Time
+Critical	Security breach or production compromise	Immediate
+High	Risk to data or production systems	1 hour
+Medium	Process violation	Same day
+Low	Minor guideline breach	Next sprint
+
+
+⸻
+
+Example Slack Conversations (for Testing)
+
+Example 1
+
+Dev1: I can't access prod DB.
+Dev2: Use this password: prod_db_admin_123
+
+Violation:
+	•	Credential sharing
+	•	Severity: Critical
+
+⸻
+
+Example 2
+
+Dev1: Skipping unit tests for this PR, just need to ship quickly.
+
+Violation:
+	•	Code review standards
+	•	Severity: Medium
+
+⸻
+
+Example 3
+
+Dev1: I SSH'd into prod and fixed the issue manually.
+
+Violation:
+	•	Unauthorized deployment
+	•	Severity: Critical
+
+⸻
+
+Optional Violations (Edge Cases)
+
+These help test nuanced detection:
+
+I think we should just disable authentication for testing.
+
+Can someone send me the production API key?
+
+Let's deploy directly to prod to save time.
+
+
+⸻
+
+✅ This document should work well for your SOP-violation flagger because it includes:
+	•	structured rules
+	•	ambiguous violations
+	•	severity levels
+	•	security + engineering practices
+	•	Slack-style violations
+
+⸻
+
+If you want, I can also generate a synthetic dataset of ~200 Slack messages (mix of compliant + violating) which is extremely useful for testing your classifier or agent pipeline.
