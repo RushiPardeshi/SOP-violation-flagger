@@ -9,7 +9,10 @@ class Settings(BaseSettings):
     pinecone_namespace: str = "default"
     top_k: int = 3
 
-    model_config = {"env_file": ".env"}
+    model_config = {
+        "env_file": ".env",
+        "extra": "ignore"  # Ignore extra fields like SLACK_BOT_TOKEN, NOTION_API_KEY
+    }
 
 
 settings = Settings()
