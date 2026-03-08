@@ -10,3 +10,4 @@ class IngestRequest(BaseModel):
 class IngestResponse(BaseModel):
     status: str
     doc_id: str
+    chunks_created: int

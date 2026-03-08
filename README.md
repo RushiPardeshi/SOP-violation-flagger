@@ -4,8 +4,15 @@ FastAPI backend that monitors Slack messages and flags SOP (Standard Operating P
 
 ## Architecture
 
-- **Ingestion**: Upload SOP documents → Pinecone auto-embeds using inference API → store in vector index
-- **Detection**: Receive Slack message → Pinecone auto-embeds query → retrieve top-K similar SOPs → LLM judges violation → return structured response
+- **Ingestion**: Upload SOP documents → intelligently chunk into sections/paragraphs → Pinecone auto-embeds each chunk → store in vector index
+- **Detection**: Receive Slack message → Pinecone auto-embeds query → retrieve top-K most similar SOP chunks → LLM judges violation → return structured response
+
+**Chunking Strategy:**
+- Splits documents by numbered sections (e.g., "1.1 Rules", "2.3 Policy")
+- Falls back to paragraph boundaries if no clear sections
+- Large paragraphs are split with overlap to preserve context
+- Each chunk ~800 characters with 100-character overlap
+- Metadata preserved: title, section, parent doc_id
 
 ## Prerequisites
 
@@ -76,6 +83,16 @@ Content-Type: application/json
 }
 ```
 
+Response:
+```json
+{
+  "status": "ok",
+  "doc_id": "sop-001",
+  "chunks_created": 12
+}
+```
+_Documents are automatically chunked by section/paragraph before embedding._
+
 ### Check Message for Violations
 ```bash
 POST /check-message
@@ -130,6 +147,7 @@ app/
   main.py              # FastAPI app + router registration
   config.py            # Environment configuration
   services/
+    chunking.py        # Intelligent SOP document chunking (sections/paragraphs)
     embeddings.py      # OpenAI embedding wrapper (legacy, not used)
     pinecone_svc.py    # Pinecone inference API (auto-embedding + similarity search)
     llm.py             # OpenAI LLM violation reasoning (JSON mode)
