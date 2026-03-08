@@ -67,6 +67,20 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS reported_violations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_text TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                channel_id TEXT,
+                rule TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_reported_created 
+            ON reported_violations(created_at)
+        """)
 
 
 @contextmanager
@@ -127,17 +141,18 @@ def get_violation_by_bot_message(channel_id: str, bot_message_ts: str) -> dict |
         return dict(row) if row else None
 
 
-def record_feedback(violation_id: int, feedback_type: str, user_id: str) -> None:
-    """Record user feedback: 'false_positive' or 'correct'."""
+def record_feedback(violation_id: int, feedback_type: str, user_id: str) -> int:
+    """Record user feedback: 'false_positive' or 'correct'. Returns feedback id."""
     init_db()
     if feedback_type not in ("false_positive", "correct"):
         raise ValueError("feedback_type must be 'false_positive' or 'correct'")
     created_at = datetime.utcnow().isoformat()
     with get_db() as conn:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO feedback (violation_id, feedback_type, user_id, created_at) VALUES (?, ?, ?, ?)",
             (violation_id, feedback_type, user_id, created_at),
         )
+        return cur.lastrowid
 
 
 def get_violations(
@@ -187,9 +202,30 @@ def record_onboarded(user_id: str) -> None:
         )
 
 
+def record_reported_violation(
+    message_text: str,
+    user_id: str,
+    channel_id: str | None = None,
+    rule: str | None = None,
+) -> int:
+    """Record a user-reported violation (false negative - we missed it). Returns id."""
+    init_db()
+    created_at = datetime.utcnow().isoformat()
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO reported_violations (message_text, user_id, channel_id, rule, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (message_text, user_id, channel_id or "", rule or "", created_at),
+        )
+        return cur.lastrowid
+
+
 def get_feedback_examples(
     max_false_positives: int = 3,
     max_correct: int = 3,
+    max_false_negatives: int = 2,
 ) -> list[dict]:
     """
     Fetch recent feedback examples for few-shot learning.
@@ -225,12 +261,26 @@ def get_feedback_examples(
             (max_correct,),
         ).fetchall()
 
+        # Get false negatives (user reported we missed a violation)
+        fn_rows = conn.execute(
+            """
+            SELECT message_text, rule
+            FROM reported_violations
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (max_false_negatives,),
+        ).fetchall()
+
     for row in fp_rows:
         r = dict(row)
         examples.append({"message_text": r.get("message_text", ""), "rule": r.get("rule", ""), "feedback_type": "false_positive"})
     for row in correct_rows:
         r = dict(row)
         examples.append({"message_text": r.get("message_text", ""), "rule": r.get("rule", ""), "feedback_type": "correct"})
+    for row in fn_rows:
+        r = dict(row)
+        examples.append({"message_text": r.get("message_text", ""), "rule": r.get("rule", ""), "feedback_type": "false_negative"})
 
     return examples
 
@@ -316,6 +366,13 @@ def get_analytics(
             feedback_params,
         ).fetchone()[0]
 
+        reported_where = "created_at >= ?" if since else "1=1"
+        reported_params = [since] if since else []
+        false_negatives = conn.execute(
+            f"SELECT COUNT(*) FROM reported_violations WHERE {reported_where}",
+            reported_params,
+        ).fetchone()[0]
+
     return {
         "total_violations": total,
         "by_severity": by_severity,
@@ -325,5 +382,6 @@ def get_analytics(
         "feedback": {
             "false_positives": false_positives,
             "correct": correct_flags,
+            "false_negatives": false_negatives,
         },
     }

@@ -38,6 +38,8 @@ def _format_feedback_examples(examples: list[dict]) -> str:
             msg += "..."
         if ex.get("feedback_type") == "false_positive":
             lines.append(f"- FALSE POSITIVE (do NOT flag): \"{msg}\" — was flagged for {ex.get('rule', '?')} but user said it was not a violation")
+        elif ex.get("feedback_type") == "false_negative":
+            lines.append(f"- FALSE NEGATIVE (should have flagged): \"{msg}\" — user reported we missed this violation")
         else:
             lines.append(f"- CORRECT (do flag): \"{msg}\" — correctly flagged for {ex.get('rule', '?')}")
     return "\n".join(lines)

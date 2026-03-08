@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.db import record_feedback, get_violation_by_bot_message
+from app.services.pinecone_svc import upsert_feedback as pinecone_upsert_feedback
 
 router = APIRouter(tags=["feedback"])
 
@@ -23,5 +24,15 @@ async def submit_feedback(req: FeedbackRequest):
     violation = get_violation_by_bot_message(req.channel_id, req.bot_message_ts)
     if not violation:
         raise HTTPException(404, "Violation not found for this message")
-    record_feedback(violation["id"], req.feedback_type, req.user_id)
+    feedback_id = record_feedback(violation["id"], req.feedback_type, req.user_id)
+    # Upsert to Pinecone for RAG over feedback (same index, feedback namespace)
+    try:
+        pinecone_upsert_feedback(
+            feedback_id=feedback_id,
+            message_text=violation.get("message_text", ""),
+            rule=violation.get("rule", ""),
+            feedback_type=req.feedback_type,
+        )
+    except Exception:
+        pass  # Don't fail the request if Pinecone upsert fails
     return {"status": "ok", "feedback_type": req.feedback_type}

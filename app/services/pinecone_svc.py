@@ -73,3 +73,60 @@ def query_similar(query_text: str, top_k: int) -> list[dict]:
         }
         for match in result["matches"]
     ]
+
+
+def upsert_feedback(feedback_id: int, message_text: str, rule: str, feedback_type: str) -> None:
+    """Upsert a feedback example to Pinecone (feedback namespace) for RAG over feedback."""
+    vector = embed_text(message_text)
+    _index.upsert(
+        vectors=[
+            {
+                "id": f"feedback-{feedback_id}",
+                "values": vector,
+                "metadata": {
+                    "message_text": message_text[:1000],  # Pinecone metadata limit
+                    "rule": rule[:500] if rule else "",
+                    "feedback_type": feedback_type,
+                },
+            }
+        ],
+        namespace=settings.pinecone_feedback_namespace,
+    )
+
+
+def upsert_reported_violation(reported_id: int, message_text: str, rule: str = "") -> None:
+    """Upsert a reported violation (false negative) to Pinecone feedback namespace."""
+    vector = embed_text(message_text)
+    _index.upsert(
+        vectors=[
+            {
+                "id": f"reported-{reported_id}",
+                "values": vector,
+                "metadata": {
+                    "message_text": message_text[:1000],
+                    "rule": (rule or "")[:500],
+                    "feedback_type": "false_negative",
+                },
+            }
+        ],
+        namespace=settings.pinecone_feedback_namespace,
+    )
+
+
+def query_similar_feedback(query_text: str, top_k: int) -> list[dict]:
+    """Query similar feedback examples from Pinecone (feedback namespace)."""
+    query_vector = embed_text(query_text)
+    result = _index.query(
+        vector=query_vector,
+        top_k=top_k,
+        include_metadata=True,
+        namespace=settings.pinecone_feedback_namespace,
+    )
+    return [
+        {
+            "id": match["id"],
+            "score": match["score"],
+            "metadata": match.get("metadata", {}),
+        }
+        for match in result["matches"]
+    ]

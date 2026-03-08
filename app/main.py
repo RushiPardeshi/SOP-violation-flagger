@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import ingest, check, analytics, feedback, violations
+from app.routers import ingest, check, analytics, feedback, violations, report
 
 app = FastAPI(
     title="SOP Violation Flagger",
@@ -12,6 +12,7 @@ app.include_router(check.router)
 app.include_router(analytics.router)
 app.include_router(feedback.router)
 app.include_router(violations.router)
+app.include_router(report.router)
 
 
 @app.get("/")

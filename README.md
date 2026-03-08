@@ -59,7 +59,8 @@ An AI-powered bot that:
 - 📊 **Analytics API** - `GET /analytics/stats`, `GET /analytics/violations`, `GET /analytics/export`
 - 📈 **CLI Reports** - `python cli.py report` or `report --format csv -o violations.csv`
 - 👍 **Feedback Loop** - React :x: (false positive) or :white_check_mark: (correct) on violation messages
-- 🧠 **Learns from Feedback** - Uses dynamic few-shot learning: recent feedback examples are injected into the LLM prompt so it improves over time
+- 📤 **Report Missed** - `/report-violation <message>` to report violations the bot should have flagged but didn't
+- 🧠 **Learns from Feedback** - RAG over feedback: similar past messages + their feedback (including reported false negatives) are retrieved from Pinecone and injected as few-shot examples
 
 ### **Intelligent Detection**
 - 🧠 **RAG-Powered** - Uses Retrieval-Augmented Generation for accurate detection
@@ -367,18 +368,18 @@ SOP-violation-flagger/
 
 1. **Stream Messages** - Slack bot listens via Socket Mode WebSocket
 2. **Semantic Search** - Embed message and find top-3 similar SOPs in Pinecone
-3. **Fetch Feedback Examples** - Retrieve recent user feedback (false positives + correct flags) from SQLite
+3. **Fetch Feedback Examples** - Query Pinecone `feedback` namespace for similar past messages with feedback (RAG); fall back to recent SQLite examples if few results
 4. **LLM Evaluation** - Send message + retrieved SOPs + feedback examples to GPT-4o-mini
    - Prompt includes few-shot examples: "FALSE POSITIVE: don't flag X" / "CORRECT: do flag Y"
    - Response: JSON with {violated, rule, severity, explanation}
 5. **Response** - If violation detected, format and post warning to Slack
-6. **Feedback** - Users react :x: or :white_check_mark:; stored for future few-shot learning
+6. **Feedback** - Users react :x: or :white_check_mark: on violations; or use `/report-violation <message>` for missed violations; all stored in SQLite and Pinecone `feedback` namespace for RAG
 
 ### **Key Features**
 
 - **Idempotent Ingestion** - Re-running ingestion only updates changed documents
 - **Context-Aware** - RAG ensures LLM has relevant SOPs for accurate evaluation
-- **Learns from Feedback** - Dynamic few-shot: up to 6 recent feedback examples (3 false positive + 3 correct) are injected into each check; model improves as users correct it
+- **Learns from Feedback** - RAG over feedback: same Pinecone index, `feedback` namespace; similar past messages + their feedback are retrieved as few-shot examples; falls back to recent SQLite when needed
 - **Asynchronous** - Backend server and bot run independently
 - **Extensible** - REST API allows custom integrations beyond Slack
 

@@ -131,6 +131,7 @@ PINECONE_NAMESPACE=default
 - Index must use **1024 dimensions**
 - `cosine` metric is recommended for text similarity
 - Free tier includes 100K vectors (sufficient for most use cases)
+- **Feedback namespace:** The same index uses a separate `feedback` namespace for RAG over user feedback; no extra setup required
 
 ---
 
@@ -196,14 +197,19 @@ PINECONE_NAMESPACE=default
    - **Request URL:** (leave blank)
    - **Short Description:** `View SOP violation analytics and feedback stats`
    - **Usage Hint:** `[optional: 2025-01-01 for date filter]`
-4. **Leave Request URL blank** for both commands (Socket Mode delivers via WebSocket)
-5. Click **"Save"** for each
+4. Create `/report-violation`:
+   - **Command:** `/report-violation`
+   - **Request URL:** (leave blank)
+   - **Short Description:** `Report a message the bot should have flagged but didn't`
+   - **Usage Hint:** `paste the message here`
+5. **Leave Request URL blank** for all commands (Socket Mode delivers via WebSocket)
+6. Click **"Save"** for each
 
 **Slash commands troubleshooting:**
 
 - **"invalid_url" or nothing happens:** Delete the slash command, ensure Socket Mode is ON, then recreate it with Request URL blank
 - **Bot must be running:** `python slack_bot.py` (or `python cli.py start-bot`) must be running for the WebSocket connection
-- **API must be running:** `uvicorn app.main:app --reload` for `/check-sop` and `/sop-analytics` to work
+- **API must be running:** `uvicorn app.main:app --reload` for `/check-sop`, `/sop-analytics`, and `/report-violation` to work
 
 **Install App to Workspace:**
 
