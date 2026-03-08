@@ -150,9 +150,11 @@ PINECONE_NAMESPACE=default
    - `channels:history` - Read public channels
    - `groups:history` - Read private channels
    - `im:history` - Read direct messages
+   - `im:write` - Send onboarding DMs to new users
    - `mpim:history` - Read multi-person DMs
    - `channels:read` - View channel info
    - `users:read` - View user info
+   - `reactions:write` - Add reactions (for feedback prompts)
 
 **Enable Event Subscriptions:**
 1. Go to **Features → Event Subscriptions**
@@ -163,7 +165,31 @@ PINECONE_NAMESPACE=default
    - `message.groups` - Private channel messages
    - `message.im` - Direct messages
    - `message.mpim` - Multi-person DMs
+   - `reaction_added` - User feedback on violation messages
 5. Click **"Save Changes"**
+
+**Create Slash Commands (important order):**
+
+⚠️ **Slash commands must be created AFTER Socket Mode is enabled.** If you created them before, delete and recreate them—otherwise Slack may show "invalid_url" and never deliver the command.
+
+1. Go to **Features → Slash Commands**
+2. Create `/check-sop`:
+   - **Command:** `/check-sop`
+   - **Request URL:** (leave blank – Socket Mode handles it)
+   - **Short Description:** `Check a message for SOP violations before posting`
+   - **Usage Hint:** `your message here`
+3. Create `/sop-analytics`:
+   - **Command:** `/sop-analytics`
+   - **Request URL:** (leave blank)
+   - **Short Description:** `View SOP violation analytics and feedback stats`
+   - **Usage Hint:** `[optional: 2025-01-01 for date filter]`
+4. **Leave Request URL blank** for both commands (Socket Mode delivers via WebSocket)
+5. Click **"Save"** for each
+
+**Slash commands troubleshooting:**
+- **"invalid_url" or nothing happens:** Delete the slash command, ensure Socket Mode is ON, then recreate it with Request URL blank
+- **Bot must be running:** `python slack_bot.py` (or `python cli.py start-bot`) must be running for the WebSocket connection
+- **API must be running:** `uvicorn app.main:app --reload` for `/check-sop` and `/sop-analytics` to work
 
 **Install App to Workspace:**
 1. Go to **Settings → Install App**

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     pinecone_index_host: str
     pinecone_namespace: str = "default"
     top_k: int = 3
+    feedback_max_examples: int = 6  # Max few-shot examples (3 false_positive + 3 correct)
 
     model_config = {
         "env_file": ".env",

@@ -4,7 +4,7 @@ from app.config import settings
 
 _client = OpenAI(api_key=settings.openai_api_key)
 
-_SYSTEM_PROMPT = """You are an SOP compliance auditor. You will be given a Slack message and a list of relevant SOP (Standard Operating Procedure) documents retrieved from a vector database.
+_SYSTEM_PROMPT_BASE = """You are an SOP compliance auditor. You will be given a Slack message and a list of relevant SOP (Standard Operating Procedure) documents retrieved from a vector database.
 
 Your task is to determine whether the message violates any SOP rule.
 
@@ -24,7 +24,30 @@ Severity guidelines:
 If no violation is found, set violated to false, and rule and severity to null."""
 
 
-def check_violation(message_text: str, sop_docs: list[dict]) -> dict:
+def _format_feedback_examples(examples: list[dict]) -> str:
+    """Format feedback examples for the prompt."""
+    if not examples:
+        return ""
+    lines = [
+        "",
+        "Learn from these user-corrected examples (users reacted to our violation flags):",
+    ]
+    for ex in examples:
+        msg = (ex.get("message_text") or "")[:150]
+        if len(ex.get("message_text", "")) > 150:
+            msg += "..."
+        if ex.get("feedback_type") == "false_positive":
+            lines.append(f"- FALSE POSITIVE (do NOT flag): \"{msg}\" — was flagged for {ex.get('rule', '?')} but user said it was not a violation")
+        else:
+            lines.append(f"- CORRECT (do flag): \"{msg}\" — correctly flagged for {ex.get('rule', '?')}")
+    return "\n".join(lines)
+
+
+def check_violation(message_text: str, sop_docs: list[dict], feedback_examples: list[dict] | None = None) -> dict:
+    system_prompt = _SYSTEM_PROMPT_BASE
+    if feedback_examples:
+        system_prompt += _format_feedback_examples(feedback_examples)
+
     docs_text = "\n\n".join(
         f"[SOP: {doc['metadata'].get('title', doc['id'])} (relevance: {doc['score']:.2f})]\n{doc['metadata'].get('content', '')}"
         for doc in sop_docs
@@ -36,7 +59,7 @@ def check_violation(message_text: str, sop_docs: list[dict]) -> dict:
         model="gpt-4o-mini",
         response_format={"type": "json_object"},
         messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ],
         temperature=0,
