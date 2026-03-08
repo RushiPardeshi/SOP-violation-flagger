@@ -7,7 +7,7 @@ Setup in Slack:
   - Settings > Socket Mode: Enable
   - Basic Information > App-Level Tokens: connections:write
   - Event Subscriptions: message.channels, message.groups, message.im, message.mpim, reaction_added
-  - Slash Commands: /check-sop, /sop-analytics
+  - Slash Commands: /check-sop, /sop-analytics, /report-violation
   - OAuth scopes: chat:write, channels:history, groups:history, im:history, mpim:history, users:read, reactions:write
 """
 
@@ -97,11 +97,55 @@ def stream_messages(api_url: str = "http://localhost:8000"):
                         lines.append("  —")
                     lines.extend([
                         "",
-                        f"*Feedback:* 👍 {fb.get('correct', 0)} correct, ❌ {fb.get('false_positives', 0)} false positives",
+                        f"*Feedback:* 👍 {fb.get('correct', 0)} correct, ❌ {fb.get('false_positives', 0)} false positives, 📤 {fb.get('false_negatives', 0)} reported (missed)",
                     ])
                     msg = "\n".join(lines)
                 except Exception as e:
                     msg = f":warning: Could not fetch analytics: {e}"
+                response = SocketModeResponse(envelope_id=req.envelope_id, payload={"text": msg})
+                client.send_socket_mode_response(response)
+                return
+
+            elif cmd == "/report-violation":
+                text = payload.get("text", "").strip()
+                user_id = payload.get("user_id", "")
+                channel_id = payload.get("channel_id", "")
+                if not text:
+                    msg = "Usage: `/report-violation <message>` — Report a message the bot should have flagged but didn't."
+                else:
+                    try:
+                        # Optionally get rule from check (helps with learning)
+                        rule = ""
+                        try:
+                            r = requests.post(
+                                f"{api_url}/check-message",
+                                json={
+                                    "channel_id": channel_id,
+                                    "user_id": user_id,
+                                    "message_text": text,
+                                    "timestamp": str(time.time()),
+                                },
+                                timeout=10,
+                            )
+                            if r.ok:
+                                data = r.json()
+                                if data.get("violated"):
+                                    rule = data.get("rule") or ""
+                        except Exception:
+                            pass
+                        requests.post(
+                            f"{api_url}/report-violation",
+                            json={
+                                "message_text": text,
+                                "user_id": user_id,
+                                "channel_id": channel_id,
+                                "rule": rule or None,
+                            },
+                            timeout=10,
+                        )
+                        msg = ":white_check_mark: Reported. Thanks — we'll use this to improve detection."
+                    except Exception as e:
+                        msg = f":warning: Could not report: {e}"
                 response = SocketModeResponse(envelope_id=req.envelope_id, payload={"text": msg})
                 client.send_socket_mode_response(response)
                 return

@@ -115,6 +115,7 @@ def report(since: str = None, format: str = "text", output: str = None):
         "Feedback:",
         f"  False positives: {fb.get('false_positives', 0)}",
         f"  Correct flags: {fb.get('correct', 0)}",
+        f"  Reported (missed): {fb.get('false_negatives', 0)}",
         "",
     ])
     text = "\n".join(lines)
