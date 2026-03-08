@@ -1,5 +1,6 @@
 from pinecone import Pinecone
 from app.config import settings
+from app.services.chunking import chunk_sop_document
 from app.services.embeddings import embed_text
 
 _pc = Pinecone(api_key=settings.pinecone_api_key)
@@ -7,48 +8,61 @@ _index = _pc.Index(host=settings.pinecone_index_host)
 
 
 def check_doc_exists(doc_id: str) -> bool:
-    """Check if a document already exists in Pinecone."""
+    """Check if any chunk of a document already exists in Pinecone."""
     try:
-        result = _index.fetch(ids=[doc_id], namespace=settings.pinecone_namespace)
-        return doc_id in result.get("vectors", {})
+        # Check for the first chunk to determine if doc exists
+        chunk_id = f"{doc_id}#chunk0"
+        result = _index.fetch(ids=[chunk_id], namespace=settings.pinecone_namespace)
+        return chunk_id in result.get("vectors", {})
     except Exception:
         return False
 
 
 def upsert_doc(doc_id: str, title: str, content: str) -> dict:
     """
-    Upsert document with manual embedding.
-    - If doc_id exists: updates the existing document
-    - If doc_id doesn't exist: creates a new document
-    - Other documents remain untouched
+    Upsert document with intelligent chunking and manual embedding.
+    - Chunks the document intelligently (sections/paragraphs)
+    - Creates embeddings for each chunk
+    - If doc_id exists: updates existing chunks and adds new ones
+    - Returns chunk count and action status
     
     Returns:
-        dict with 'action' ("added" or "updated") and 'doc_id'
+        dict with 'action' ("added" or "updated"), 'doc_id', and 'chunks_created'
     """
     # Check if document already exists
     exists = check_doc_exists(doc_id)
     
-    # Create embedding
-    vector = embed_text(content)
+    # Chunk the document intelligently
+    chunks = chunk_sop_document(content, title, chunk_size=800, overlap=100)
     
-    # Upsert to Pinecone (will update if exists, insert if new)
-    _index.upsert(
-        vectors=[
-            {
-                "id": doc_id,
-                "values": vector,
-                "metadata": {
-                    "title": title,
-                    "content": content,
-                }
+    # Prepare vectors for upsert
+    vectors = []
+    for idx, chunk in enumerate(chunks):
+        chunk_id = f"{doc_id}#chunk{idx}"
+        vector = embed_text(chunk["text"])
+        
+        vectors.append({
+            "id": chunk_id,
+            "values": vector,
+            "metadata": {
+                "title": title,
+                "doc_id": doc_id,
+                "chunk_index": idx,
+                "section": chunk["metadata"].get("section", ""),
+                "content": chunk["text"],
             }
-        ],
+        })
+    
+    # Upsert all chunks to Pinecone
+    _index.upsert(
+        vectors=vectors,
         namespace=settings.pinecone_namespace
     )
     
     return {
         "action": "updated" if exists else "added",
-        "doc_id": doc_id
+        "doc_id": doc_id,
+        "chunks_created": len(vectors)
     }
 
 

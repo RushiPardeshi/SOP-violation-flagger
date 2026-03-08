@@ -14,9 +14,10 @@ async def ingest_document(request: IngestRequest):
             content=request.content,
         )
         return IngestResponse(
-            status="ok", 
+            status="ok",
+            chunks_created=result["chunks_created"],
             doc_id=request.doc_id,
-            action=result.get("action")
+            action=result.get("action"),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
