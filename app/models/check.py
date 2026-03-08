@@ -13,4 +13,4 @@ class CheckResponse(BaseModel):
     violated: bool
     rule: Optional[str] = None
     severity: Optional[str] = None
-    explanation: str
+    explanation: Optional[str] = None

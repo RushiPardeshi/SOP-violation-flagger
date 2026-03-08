@@ -47,6 +47,7 @@ pip install -r requirements.txt
 ```
 
 This installs:
+
 - `fastapi>=0.110.0` - Web framework
 - `uvicorn[standard]` - ASGI server
 - `openai>=1.12.0` - OpenAI API client
@@ -64,6 +65,7 @@ This installs:
 ### **1. OpenAI Setup**
 
 **Get API Key:**
+
 1. Go to [platform.openai.com](https://platform.openai.com)
 2. Sign up or log in
 3. Navigate to **API keys** section
@@ -71,15 +73,18 @@ This installs:
 5. Copy the key (starts with `sk-`)
 
 **Add to `.env`:**
+
 ```env
 OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 **Models Used:**
+
 - `text-embedding-3-small` (1024 dimensions) - For embeddings
 - `gpt-4o-mini` - For violation detection
 
 **Pricing (as of 2024):**
+
 - Embeddings: ~$0.02 per 1M tokens
 - GPT-4o-mini: ~$0.15 per 1M input tokens, ~$0.60 per 1M output tokens
 
@@ -88,28 +93,32 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ### **2. Pinecone Setup**
 
 **Create Account:**
+
 1. Go to [pinecone.io](https://www.pinecone.io)
 2. Sign up for free account
 3. Verify email
 
 **Create Index:**
+
 1. Go to **Indexes** in dashboard
 2. Click **"Create Index"**
 3. Configure:
    - **Name:** `sop-index` (or your preferred name)
-   - **Dimensions:** `1024` ⚠️ *Must be 1024 to match OpenAI embeddings*
+   - **Dimensions:** `1024` ⚠️ _Must be 1024 to match OpenAI embeddings_
    - **Metric:** `cosine` (recommended)
    - **Cloud:** Choose your region
    - **Plan:** Starter (free) is sufficient for testing
 4. Click **"Create Index"**
 
 **Get API Credentials:**
+
 1. Go to **API Keys** section
 2. Copy your API key
 3. Go to your index → **Connect** tab
 4. Copy the **Host** URL (e.g., `https://sop-index-abc123.svc.pinecone.io`)
 
 **Add to `.env`:**
+
 ```env
 PINECONE_API_KEY=abcd1234-5678-90ef-ghij-klmnopqrstuv
 PINECONE_INDEX=sop-index
@@ -118,6 +127,7 @@ PINECONE_NAMESPACE=default
 ```
 
 **Important Notes:**
+
 - Index must use **1024 dimensions**
 - `cosine` metric is recommended for text similarity
 - Free tier includes 100K vectors (sufficient for most use cases)
@@ -127,6 +137,7 @@ PINECONE_NAMESPACE=default
 ### **3. Slack App Setup**
 
 **Create Slack App:**
+
 1. Go to [api.slack.com/apps](https://api.slack.com/apps)
 2. Click **"Create New App"**
 3. Choose **"From scratch"**
@@ -134,15 +145,16 @@ PINECONE_NAMESPACE=default
 5. Select your workspace
 
 **Enable Socket Mode:**
+
 1. Go to **Settings → Socket Mode**
 2. Toggle **"Enable Socket Mode"** → ON
 3. Create App-Level Token:
-   - Name: `socket-token`
    - Scope: `connections:write`
    - Click **"Generate"**
    - **Copy token** (starts with `xapp-`)
 
 **Configure OAuth Scopes:**
+
 1. Go to **Features → OAuth & Permissions**
 2. Scroll to **Bot Token Scopes**
 3. Add these scopes:
@@ -150,11 +162,14 @@ PINECONE_NAMESPACE=default
    - `channels:history` - Read public channels
    - `groups:history` - Read private channels
    - `im:history` - Read direct messages
+   - `im:write` - Send onboarding DMs to new users
    - `mpim:history` - Read multi-person DMs
    - `channels:read` - View channel info
    - `users:read` - View user info
+   - `reactions:write` - Add reactions (for feedback prompts)
 
 **Enable Event Subscriptions:**
+
 1. Go to **Features → Event Subscriptions**
 2. Toggle **"Enable Events"** → ON
 3. Expand **Subscribe to bot events**
@@ -163,9 +178,35 @@ PINECONE_NAMESPACE=default
    - `message.groups` - Private channel messages
    - `message.im` - Direct messages
    - `message.mpim` - Multi-person DMs
+   - `reaction_added` - User feedback on violation messages
 5. Click **"Save Changes"**
 
+**Create Slash Commands (important order):**
+
+⚠️ **Slash commands must be created AFTER Socket Mode is enabled.** If you created them before, delete and recreate them—otherwise Slack may show "invalid_url" and never deliver the command.
+
+1. Go to **Features → Slash Commands**
+2. Create `/check-sop`:
+   - **Command:** `/check-sop`
+   - **Request URL:** (leave blank – Socket Mode handles it)
+   - **Short Description:** `Check a message for SOP violations before posting`
+   - **Usage Hint:** `your message here`
+3. Create `/sop-analytics`:
+   - **Command:** `/sop-analytics`
+   - **Request URL:** (leave blank)
+   - **Short Description:** `View SOP violation analytics and feedback stats`
+   - **Usage Hint:** `[optional: 2025-01-01 for date filter]`
+4. **Leave Request URL blank** for both commands (Socket Mode delivers via WebSocket)
+5. Click **"Save"** for each
+
+**Slash commands troubleshooting:**
+
+- **"invalid_url" or nothing happens:** Delete the slash command, ensure Socket Mode is ON, then recreate it with Request URL blank
+- **Bot must be running:** `python slack_bot.py` (or `python cli.py start-bot`) must be running for the WebSocket connection
+- **API must be running:** `uvicorn app.main:app --reload` for `/check-sop` and `/sop-analytics` to work
+
 **Install App to Workspace:**
+
 1. Go to **Settings → Install App**
 2. Click **"Install to Workspace"**
 3. Review permissions
@@ -173,6 +214,7 @@ PINECONE_NAMESPACE=default
 5. **Copy Bot User OAuth Token** (starts with `xoxb-`)
 
 **Add to `.env`:**
+
 ```env
 SLACK_BOT_TOKEN=xoxb-xxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx
 SLACK_APP_TOKEN=xapp-x-xxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -181,6 +223,7 @@ SLACK_APP_TOKEN=xapp-x-xxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 **Invite Bot to Channels:**
 
 In Slack, type in any channel:
+
 ```
 /invite @SOP Compliance Bot
 ```
@@ -192,6 +235,7 @@ The bot will now monitor messages in that channel.
 ### **4. Notion Integration Setup**
 
 **Create Integration:**
+
 1. Go to [notion.so/my-integrations](https://www.notion.so/my-integrations)
 2. Click **"+ New integration"**
 3. Configure:
@@ -207,6 +251,7 @@ The bot will now monitor messages in that channel.
 5. **Copy Internal Integration Token** (starts with `secret_`)
 
 **Share Pages with Integration:**
+
 1. Open your SOP page in Notion
 2. Click **"Share"** (top right)
 3. Click **"Invite"**
@@ -215,11 +260,13 @@ The bot will now monitor messages in that channel.
 6. Repeat for all SOP pages/databases you want to ingest
 
 **Add to `.env`:**
+
 ```env
 NOTION_API_KEY=secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 **Note:** You can share:
+
 - Individual pages
 - Entire databases
 - Parent pages (integration inherits access to child pages)
@@ -271,6 +318,7 @@ python cli.py check-setup
 ```
 
 Expected output:
+
 ```
 🔍 Checking setup...
 
@@ -431,16 +479,19 @@ If you see errors about vector dimensions:
 Once setup is complete:
 
 1. **Start the backend server:**
+
    ```bash
    python cli.py start-server
    ```
 
 2. **Ingest SOPs from Notion:**
+
    ```bash
    python cli.py ingest-notion
    ```
 
 3. **Start Slack bot:**
+
    ```bash
    python cli.py start-bot
    ```
