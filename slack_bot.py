@@ -2,16 +2,28 @@
 """
 Real-time Slack SOP Compliance Monitor
 Streams messages from Slack, checks for violations via API, and responds with warnings.
-Usage: python slack_bot.py [--api-url http://localhost:8000]
+Usage: python slack_bot.py [--api-url http://localhost:8000] [--no-onboarding]
 """
 
+import os
 import sys
 import argparse
 import requests
 from datetime import datetime
-from slack_connector import stream_messages, send_message
+from slack_connector import stream_messages, send_message, send_onboarding_dm
 
 API_BASE_URL = "http://localhost:8000"
+
+DEFAULT_ONBOARDING_MESSAGE = """👋 *Welcome to SOP Compliance*
+
+This workspace uses an AI bot to help keep conversations compliant with our Standard Operating Procedures.
+
+*Quick reminders:*
+• Don't share credentials or secrets in channels
+• Follow data security and privacy policies
+• Use `/check-sop <message>` to preview before posting
+
+See our Notion workspace for full SOPs. Questions? Ask your manager."""
 
 # Emoji mapping for severity levels
 SEVERITY_EMOJI = {
@@ -49,7 +61,8 @@ def format_violation_message(result: dict, original_message: str) -> str:
 *Flagged message:*
 > {msg_preview}
 
-Please review our SOPs. If this is a false positive, contact your manager."""
+Please review our SOPs.
+_React :x: for false positive | :white_check_mark: if correct_"""
     
     return message
 
@@ -89,7 +102,7 @@ def check_message_compliance(channel_id: str, user_id: str, message_text: str, t
         return None
 
 
-def run_bot(api_url: str = API_BASE_URL):
+def run_bot(api_url: str = API_BASE_URL, enable_onboarding: bool = True):
     """
     Main bot loop: stream messages, check compliance, respond to violations.
     """
@@ -109,11 +122,22 @@ def run_bot(api_url: str = API_BASE_URL):
     
     message_count = 0
     violation_count = 0
-    
+    onboarding_message = os.environ.get("ONBOARDING_MESSAGE", DEFAULT_ONBOARDING_MESSAGE)
+
     try:
-        for channel_id, user_id, message, ts in stream_messages():
+        for channel_id, user_id, message, ts in stream_messages(api_url=api_url):
             message_count += 1
             time_str = datetime.fromtimestamp(float(ts)).strftime("%H:%M:%S") if ts else ""
+
+            # Proactive onboarding: DM new users with key SOPs (one-time)
+            if enable_onboarding and user_id:
+                try:
+                    from app.services.db import is_onboarded, record_onboarded
+                    if not is_onboarded(user_id) and send_onboarding_dm(user_id, onboarding_message):
+                        record_onboarded(user_id)
+                        print(f"   📬 Onboarding DM sent to {user_id}")
+                except Exception:
+                    pass
             
             print(f"[{time_str}] #{channel_id} <{user_id}>: {message[:80]}{'...' if len(message) > 80 else ''}")
             
@@ -138,7 +162,26 @@ def run_bot(api_url: str = API_BASE_URL):
                 warning = format_violation_message(result, message)
                 
                 try:
-                    send_message(channel_id, warning)
+                    bot_ts = send_message(channel_id, warning)
+                    # Record violation for analytics and feedback
+                    if bot_ts:
+                        try:
+                            requests.post(
+                                f"{api_url}/violations",
+                                json={
+                                    "channel_id": channel_id,
+                                    "user_id": user_id,
+                                    "message_text": message,
+                                    "message_ts": ts,
+                                    "rule": result.get("rule", "Unknown"),
+                                    "severity": result.get("severity", "medium"),
+                                    "explanation": result.get("explanation", ""),
+                                    "bot_message_ts": bot_ts,
+                                },
+                                timeout=5,
+                            )
+                        except Exception:
+                            pass
                     print(f"   ✅ Warning sent to channel")
                 except Exception as e:
                     print(f"   ❌ Failed to send warning: {e}")
@@ -164,14 +207,18 @@ def main():
         description="Real-time Slack SOP compliance monitor"
     )
     parser.add_argument(
-        "--api-url", 
+        "--api-url",
         default=API_BASE_URL,
-        help="API base URL (default: http://localhost:8000)"
+        help="API base URL (default: http://localhost:8000)",
     )
-    
+    parser.add_argument(
+        "--no-onboarding",
+        action="store_true",
+        help="Disable proactive onboarding DMs to new users",
+    )
+
     args = parser.parse_args()
-    
-    run_bot(args.api_url)
+    run_bot(api_url=args.api_url, enable_onboarding=not args.no_onboarding)
 
 
 if __name__ == "__main__":

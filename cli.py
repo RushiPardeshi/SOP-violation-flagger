@@ -54,6 +54,77 @@ def clear_pinecone():
         sys.exit(1)
 
 
+def report(since: str = None, format: str = "text", output: str = None):
+    """Print or export analytics report (no API required)."""
+    try:
+        from app.services.db import get_analytics, get_violations, init_db
+    except ImportError as e:
+        print(f"❌ Cannot import: {e}")
+        sys.exit(1)
+
+    init_db()
+    stats = get_analytics(since=since)
+
+    if format == "csv":
+        violations = get_violations(limit=10000, since=since)
+        import csv
+        import io
+        out = io.StringIO()
+        writer = csv.DictWriter(
+            out,
+            fieldnames=["channel_id", "user_id", "message_ts", "rule", "severity", "created_at"],
+            extrasaction="ignore",
+        )
+        writer.writeheader()
+        for v in violations:
+            writer.writerow({k: v.get(k, "") for k in writer.fieldnames})
+        content = out.getvalue()
+        if output:
+            Path(output).write_text(content)
+            print(f"📄 Exported {len(violations)} violations to {output}")
+        else:
+            print(content)
+        return
+
+    # Text format
+    lines = [
+        "",
+        "📊 SOP Violation Report",
+        "=" * 40,
+        f"Total violations: {stats['total_violations']}",
+        "",
+        "By severity:",
+    ]
+    for sev, count in stats.get("by_severity", {}).items():
+        lines.append(f"  {sev}: {count}")
+    lines.extend([
+        "",
+        "Top channels:",
+    ])
+    for row in stats.get("by_channel", [])[:10]:
+        lines.append(f"  {row.get('channel_id', '')}: {row.get('count', 0)}")
+    lines.extend([
+        "",
+        "Top rules violated:",
+    ])
+    for row in stats.get("by_rule", [])[:10]:
+        lines.append(f"  {row.get('rule', '')}: {row.get('count', 0)}")
+    fb = stats.get("feedback", {})
+    lines.extend([
+        "",
+        "Feedback:",
+        f"  False positives: {fb.get('false_positives', 0)}",
+        f"  Correct flags: {fb.get('correct', 0)}",
+        "",
+    ])
+    text = "\n".join(lines)
+    if output:
+        Path(output).write_text(text)
+        print(f"📄 Report saved to {output}")
+    else:
+        print(text)
+
+
 def ingest_file(file_path: str, doc_id: str = None, title: str = None):
     """Ingest a single file."""
     cmd = ["python", "ingest_file.py", file_path]
@@ -144,6 +215,8 @@ Examples:
   python cli.py clear-pinecone        # Clear all vectors from Pinecone
   python cli.py ingest-notion         # Import SOPs from Notion
   python cli.py ingest-file sop.txt   # Import single file
+  python cli.py report                # Analytics report
+  python cli.py report --format csv -o violations.csv
         """
     )
     
@@ -164,6 +237,12 @@ Examples:
     # ingest-notion command
     subparsers.add_parser("ingest-notion", help="Ingest documents from Notion")
     
+    # report command
+    report_parser = subparsers.add_parser("report", help="Analytics report (violations, feedback)")
+    report_parser.add_argument("--since", help="ISO datetime filter (e.g. 2025-01-01)")
+    report_parser.add_argument("--format", choices=["text", "csv"], default="text")
+    report_parser.add_argument("-o", "--output", help="Write to file instead of stdout")
+
     # ingest-file command
     ingest_parser = subparsers.add_parser("ingest-file", help="Ingest a single file")
     ingest_parser.add_argument("file_path", help="Path to file to ingest")
@@ -187,6 +266,8 @@ Examples:
         clear_pinecone()
     elif args.command == "ingest-notion":
         ingest_notion()
+    elif args.command == "report":
+        report(since=args.since, format=args.format, output=args.output)
     elif args.command == "ingest-file":
         ingest_file(args.file_path, args.doc_id, args.title)
     else:

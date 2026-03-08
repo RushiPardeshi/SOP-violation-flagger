@@ -50,6 +50,17 @@ An AI-powered bot that:
 - ⚡ **Sub-second Response** - Flags violations within 1-3 seconds
 - 🎯 **Context-Aware** - Understands nuance and intent, not just keywords
 
+### **Proactive Compliance**
+- 📋 **Slash Command** - `/check-sop <message>` to preview before posting
+- 📊 **Analytics in Slack** - `/sop-analytics` or `/sop-analytics 2025-01-01` for violation stats
+- 📬 **Onboarding DMs** - New users receive key SOP reminders automatically
+
+### **Analytics & Feedback**
+- 📊 **Analytics API** - `GET /analytics/stats`, `GET /analytics/violations`, `GET /analytics/export`
+- 📈 **CLI Reports** - `python cli.py report` or `report --format csv -o violations.csv`
+- 👍 **Feedback Loop** - React :x: (false positive) or :white_check_mark: (correct) on violation messages
+- 🧠 **Learns from Feedback** - Uses dynamic few-shot learning: recent feedback examples are injected into the LLM prompt so it improves over time
+
 ### **Intelligent Detection**
 - 🧠 **RAG-Powered** - Uses Retrieval-Augmented Generation for accurate detection
 - 📊 **Semantic Search** - Finds relevant SOPs even with different wording
@@ -356,15 +367,18 @@ SOP-violation-flagger/
 
 1. **Stream Messages** - Slack bot listens via Socket Mode WebSocket
 2. **Semantic Search** - Embed message and find top-3 similar SOPs in Pinecone
-3. **LLM Evaluation** - Send message + retrieved SOPs to GPT-4o-mini
-   - Prompt: "You are a compliance auditor. Does this message violate any SOPs?"
+3. **Fetch Feedback Examples** - Retrieve recent user feedback (false positives + correct flags) from SQLite
+4. **LLM Evaluation** - Send message + retrieved SOPs + feedback examples to GPT-4o-mini
+   - Prompt includes few-shot examples: "FALSE POSITIVE: don't flag X" / "CORRECT: do flag Y"
    - Response: JSON with {violated, rule, severity, explanation}
-4. **Response** - If violation detected, format and post warning to Slack
+5. **Response** - If violation detected, format and post warning to Slack
+6. **Feedback** - Users react :x: or :white_check_mark:; stored for future few-shot learning
 
 ### **Key Features**
 
 - **Idempotent Ingestion** - Re-running ingestion only updates changed documents
 - **Context-Aware** - RAG ensures LLM has relevant SOPs for accurate evaluation
+- **Learns from Feedback** - Dynamic few-shot: up to 6 recent feedback examples (3 false positive + 3 correct) are injected into each check; model improves as users correct it
 - **Asynchronous** - Backend server and bot run independently
 - **Extensible** - REST API allows custom integrations beyond Slack
 
