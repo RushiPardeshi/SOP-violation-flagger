@@ -11,4 +11,5 @@ class IngestRequest(BaseModel):
 class IngestResponse(BaseModel):
     status: str
     doc_id: str
+    chunks_created: int
     action: Optional[str] = None  # "added" or "updated"

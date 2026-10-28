@@ -6,7 +6,15 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
----
+- **Ingestion**: Upload SOP documents → intelligently chunk into sections/paragraphs → Pinecone auto-embeds each chunk → store in vector index
+- **Detection**: Receive Slack message → Pinecone auto-embeds query → retrieve top-K most similar SOP chunks → LLM judges violation → return structured response
+
+**Chunking Strategy:**
+- Splits documents by numbered sections (e.g., "1.1 Rules", "2.3 Policy")
+- Falls back to paragraph boundaries if no clear sections
+- Large paragraphs are split with overlap to preserve context
+- Each chunk ~800 characters with 100-character overlap
+- Metadata preserved: title, section, parent doc_id
 
 ## 📋 Table of Contents
 
@@ -209,7 +217,61 @@ python cli.py check-setup
 
 This validates all API keys and connections.
 
-### **4. Ingest SOPs from Notion**
+## API Endpoints
+
+### Health Check
+```bash
+GET /
+```
+
+### Ingest SOP Document
+```bash
+POST /ingest
+Content-Type: application/json
+
+{
+  "doc_id": "sop-001",
+  "title": "Data Handling Policy",
+  "content": "..."
+}
+```
+
+Response:
+```json
+{
+  "status": "ok",
+  "doc_id": "sop-001",
+  "chunks_created": 12
+}
+```
+_Documents are automatically chunked by section/paragraph before embedding._
+
+### Check Message for Violations
+```bash
+POST /check-message
+Content-Type: application/json
+
+{
+  "channel_id": "C12345",
+  "user_id": "U67890",
+  "message_text": "Here is the production password: admin123",
+  "timestamp": "1234567890.123456"
+}
+```
+
+Response:
+```json
+{
+  "violated": true,
+  "rule": "Credential sharing in public channels",
+  "severity": "critical",
+  "explanation": "Production credentials must never be shared in Slack"
+}
+```
+
+## Usage
+
+### Ingest the sample SOP
 
 ```bash
 # Start the backend server (in terminal 1)
@@ -244,7 +306,20 @@ The bot will now monitor all Slack channels it's invited to and automatically fl
 
 **Slack Message:**
 ```
-Hey team, use this password for prod: admin123
+app/
+  main.py              # FastAPI app + router registration
+  config.py            # Environment configuration
+  services/
+    chunking.py        # Intelligent SOP document chunking (sections/paragraphs)
+    embeddings.py      # OpenAI embedding wrapper (legacy, not used)
+    pinecone_svc.py    # Pinecone inference API (auto-embedding + similarity search)
+    llm.py             # OpenAI LLM violation reasoning (JSON mode)
+  models/
+    ingest.py          # IngestRequest/Response schemas
+    check.py           # CheckRequest/Response schemas
+  routers/
+    ingest.py          # POST /ingest endpoint
+    check.py           # POST /check-message endpoint
 ```
 
 **Bot Response:**
